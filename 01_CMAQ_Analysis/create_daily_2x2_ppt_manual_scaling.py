@@ -59,9 +59,10 @@ POLLUTANT_CONFIG = {
         'native_units': 'μg/m³',
         'colormap_base': 'viridis',
         'colormap_delta': 'YlOrRd',
-        'levels_base': [0, 5, 10, 15, 20, 30, 40, 50, 60, 80],
-        'levels_delta': [-0.5, 0, 0.5, 1, 2, 5, 10, 20, 50, 100],
-        'levels_percent': [-1, 0, 5, 10, 20, 30, 50, 100, 200, 500],
+        # Updated to match notebook (Pye2025_FirePMevolution.ipynb) Panel B0, B2, B3
+        'levels_base': [0, 10, 20, 30, 40, 50, 60, 70, 80],           # Panel B0
+        'levels_delta': [-0.5, 0, 0.5, 1, 2, 3, 4, 5, 10, 20],        # Panel B2
+        'levels_percent': [-1, 0, 1, 2, 3, 4, 5, 10, 50, 100],        # Panel B3 (max 100%)
         'can_be_negative': False,
         'molecular_weight': None,  # Already in μg/m³
     },
@@ -252,8 +253,9 @@ def create_daily_plot(base_day, nofire_day, delta_day, config, units, date_str, 
     format_map_axis(axes[1, 0], cno, title_c)
 
     # Panel (d): Percent delta
-    percent_delta = ((base_day - nofire_day) / nofire_day * 100)
-    percent_delta = np.where(np.isinf(percent_delta), np.nan, percent_delta)  # Remove infinities
+    # Fix: Use base_day as denominator (not nofire_day) and use pre-calculated delta_day
+    # This matches the reference notebook methodology and handles max aggregation correctly
+    percent_delta = np.where(base_day > 0, (delta_day / base_day * 100), np.nan)
 
     pv = axes[1, 1].contourf(percent_delta, cmap=config['colormap_delta'],
                               levels=config['levels_percent'], extend='both')
