@@ -1,11 +1,10 @@
 """
 CMAQ Daily 2x2 Fire Impact Maps - PowerPoint Generator
-MANUAL SCALING VERSION
+AUTO SCALING VERSION
 
 This script creates daily 2x2 comparison maps showing fire impacts on air pollutants.
-You manually define the color scale levels for each pollutant.
+Color scale levels are automatically determined from the data.
 
-Author: Generated for CMAQ Fire Analysis
 Date: 2025-01-18
 """
 
@@ -34,6 +33,10 @@ OUTPUT_DIR = r'C:\Users\smtku\OA_Evolution_Wildfires\01_CMAQ_Analysis\figures\da
 # Daily aggregation method
 DAILY_METHOD = 'mean'  # Options: 'mean' or 'max'
 
+# Auto-scaling parameters
+N_LEVELS = 9  # Number of contour levels
+USE_PERCENTILES = True  # True: use percentiles (robust), False: use min-max
+
 # Start date (first day of data)
 START_DATE = datetime(2023, 6, 1)
 # ==============================================
@@ -47,9 +50,6 @@ POLLUTANT_CONFIG = {
         'native_units': 'ppb',
         'colormap_base': 'viridis',
         'colormap_delta': 'RdBu_r',
-        'levels_base': [0, 10, 20, 30, 40, 50, 60, 70, 80],
-        'levels_delta': [-10, -5, -2, -1, 0, 1, 2, 5, 10, 20],
-        'levels_percent': [-50, -20, -10, -5, 0, 5, 10, 20, 50, 100],
         'can_be_negative': True,
         'molecular_weight': 48.00,
     },
@@ -59,11 +59,8 @@ POLLUTANT_CONFIG = {
         'native_units': 'μg/m³',
         'colormap_base': 'viridis',
         'colormap_delta': 'YlOrRd',
-        'levels_base': [0, 5, 10, 15, 20, 30, 40, 50, 60, 80],
-        'levels_delta': [-0.5, 0, 0.5, 1, 2, 5, 10, 20, 50, 100],
-        'levels_percent': [-1, 0, 5, 10, 20, 30, 50, 100, 200, 500],
         'can_be_negative': False,
-        'molecular_weight': None,  # Already in μg/m³
+        'molecular_weight': None,
     },
     'CO': {
         'var_name': 'CO',
@@ -71,9 +68,6 @@ POLLUTANT_CONFIG = {
         'native_units': 'ppb',
         'colormap_base': 'viridis',
         'colormap_delta': 'YlOrRd',
-        'levels_base': [0, 100, 200, 300, 400, 500, 750, 1000, 2000],
-        'levels_delta': [0, 10, 20, 50, 100, 200, 500, 1000, 2000],
-        'levels_percent': [0, 10, 20, 50, 100, 200, 500, 1000, 2000],
         'can_be_negative': False,
         'molecular_weight': 28.01,
     },
@@ -83,9 +77,6 @@ POLLUTANT_CONFIG = {
         'native_units': 'ppb',
         'colormap_base': 'viridis',
         'colormap_delta': 'YlOrRd',
-        'levels_base': [0, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10],
-        'levels_delta': [0, 0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 5],
-        'levels_percent': [0, 10, 20, 50, 100, 200, 500, 1000, 2000],
         'can_be_negative': False,
         'molecular_weight': 78.11,
     },
@@ -95,9 +86,6 @@ POLLUTANT_CONFIG = {
         'native_units': 'ppb',
         'colormap_base': 'viridis',
         'colormap_delta': 'YlOrRd',
-        'levels_base': [0, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10],
-        'levels_delta': [0, 0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 5],
-        'levels_percent': [0, 10, 20, 50, 100, 200, 500, 1000, 2000],
         'can_be_negative': False,
         'molecular_weight': 92.14,
     },
@@ -107,14 +95,74 @@ POLLUTANT_CONFIG = {
         'native_units': 'ppb',
         'colormap_base': 'viridis',
         'colormap_delta': 'YlOrRd',
-        'levels_base': [0, 0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 5],
-        'levels_delta': [0, 0.005, 0.01, 0.05, 0.1, 0.2, 0.5, 1, 2],
-        'levels_percent': [0, 10, 20, 50, 100, 200, 500, 1000, 2000],
         'can_be_negative': False,
         'molecular_weight': 94.11,
     },
 }
 # ===================================================
+
+
+def create_nice_levels(vmin, vmax, n_levels=9):
+    """Create nice rounded levels for colorbar"""
+    # Calculate range
+    data_range = vmax - vmin
+
+    # Find nice step size
+    raw_step = data_range / (n_levels - 1)
+
+    # Round to nice number
+    magnitude = 10 ** np.floor(np.log10(raw_step))
+    nice_steps = np.array([1, 2, 5, 10])
+    step = nice_steps[np.argmin(np.abs(nice_steps * magnitude - raw_step))] * magnitude
+
+    # Create levels
+    start = np.floor(vmin / step) * step
+    levels = start + np.arange(n_levels) * step
+
+    return levels
+
+
+def create_symmetric_levels(max_abs, n_levels=9):
+    """Create symmetric levels for diverging colormaps (centered at 0)"""
+    # Make n_levels odd to include 0
+    if n_levels % 2 == 0:
+        n_levels += 1
+
+    # Create nice step size
+    raw_step = max_abs / ((n_levels - 1) / 2)
+    magnitude = 10 ** np.floor(np.log10(raw_step))
+    nice_steps = np.array([1, 2, 5, 10])
+    step = nice_steps[np.argmin(np.abs(nice_steps * magnitude - raw_step))] * magnitude
+
+    # Create symmetric levels
+    n_half = (n_levels - 1) // 2
+    levels = np.concatenate([
+        -step * np.arange(n_half, 0, -1),
+        [0],
+        step * np.arange(1, n_half + 1)
+    ])
+
+    return levels
+
+
+def calculate_levels(data, percentile_range=(2, 98), n_levels=9, symmetric=False):
+    """Calculate color levels from data"""
+    if USE_PERCENTILES:
+        vmin, vmax = np.nanpercentile(data, percentile_range)
+    else:
+        vmin, vmax = np.nanmin(data), np.nanmax(data)
+
+    if symmetric:
+        # For diverging colormaps (delta plots that can be negative)
+        max_abs = max(abs(vmin), abs(vmax))
+        levels = create_symmetric_levels(max_abs, n_levels)
+    else:
+        # For sequential colormaps
+        if vmin < 0:
+            vmin = 0  # Force non-negative for concentration plots
+        levels = create_nice_levels(vmin, vmax, n_levels)
+
+    return levels
 
 
 def load_cmaq_data():
@@ -217,7 +265,8 @@ def format_map_axis(ax, cno, title):
     cno.drawstates(ax=ax, linewidth=0.2)
 
 
-def create_daily_plot(base_day, nofire_day, delta_day, config, units, date_str, cno, day_num):
+def create_daily_plot(base_day, nofire_day, delta_day, config, units, date_str, cno, day_num,
+                       levels_base, levels_delta, levels_percent):
     """Create 2x2 plot for a single day"""
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 7), dpi=150)
@@ -229,7 +278,7 @@ def create_daily_plot(base_day, nofire_day, delta_day, config, units, date_str, 
 
     # Panel (a): Base simulation
     pv = axes[0, 0].contourf(base_day, cmap=config['colormap_base'],
-                              levels=config['levels_base'], extend='both')
+                              levels=levels_base, extend='both')
     cb = plt.colorbar(pv, ax=axes[0, 0])
     cb.set_label(f'{config["display_name"]} ({units})', rotation=270, labelpad=15, fontsize=9)
     title_a = f'(a) Base Simulation\nMean: {np.nanmean(base_day):.2f}, Max: {np.nanmax(base_day):.1f} {units}'
@@ -237,7 +286,7 @@ def create_daily_plot(base_day, nofire_day, delta_day, config, units, date_str, 
 
     # Panel (b): No-fire simulation
     pv = axes[0, 1].contourf(nofire_day, cmap=config['colormap_base'],
-                              levels=config['levels_base'], extend='both')
+                              levels=levels_base, extend='both')
     cb = plt.colorbar(pv, ax=axes[0, 1])
     cb.set_label(f'{config["display_name"]} ({units})', rotation=270, labelpad=15, fontsize=9)
     title_b = f'(b) No-Fire Scenario\nMean: {np.nanmean(nofire_day):.2f}, Max: {np.nanmax(nofire_day):.1f} {units}'
@@ -245,7 +294,7 @@ def create_daily_plot(base_day, nofire_day, delta_day, config, units, date_str, 
 
     # Panel (c): Absolute delta
     pv = axes[1, 0].contourf(delta_day, cmap=config['colormap_delta'],
-                              levels=config['levels_delta'], extend='both')
+                              levels=levels_delta, extend='both')
     cb = plt.colorbar(pv, ax=axes[1, 0])
     cb.set_label(f'Δ{config["display_name"]} ({units})', rotation=270, labelpad=15, fontsize=9)
     title_c = f'(c) Fire Impact: Δ{config["display_name"]} (Base − No Fire)\nMean: {np.nanmean(delta_day):.2f}, Range: [{np.nanmin(delta_day):.2f}, {np.nanmax(delta_day):.2f}] {units}'
@@ -256,7 +305,7 @@ def create_daily_plot(base_day, nofire_day, delta_day, config, units, date_str, 
     percent_delta = np.where(np.isinf(percent_delta), np.nan, percent_delta)  # Remove infinities
 
     pv = axes[1, 1].contourf(percent_delta, cmap=config['colormap_delta'],
-                              levels=config['levels_percent'], extend='both')
+                              levels=levels_percent, extend='both')
     cb = plt.colorbar(pv, ax=axes[1, 1])
     cb.set_label('% Change', rotation=270, labelpad=15, fontsize=9)
     title_d = f'(d) Relative Fire Impact: %Δ{config["display_name"]}\nMean: {np.nanmean(percent_delta):.1f}%, Range: [{np.nanmin(percent_delta):.0f}%, {np.nanmax(percent_delta):.0f}%]'
@@ -304,7 +353,7 @@ def main():
     """Main execution function"""
     print("="*60)
     print("CMAQ Daily 2x2 Fire Impact Maps Generator")
-    print("Manual Scaling Version")
+    print("Auto Scaling Version")
     print("="*60)
 
     # Validate pollutant
@@ -316,6 +365,7 @@ def main():
     print(f"Native units: {config['native_units']}")
     print(f"Convert to μg/m³: {CONVERT_TO_UGM3}")
     print(f"Daily aggregation: {DAILY_METHOD}")
+    print(f"Auto-scaling: {'Percentile-based' if USE_PERCENTILES else 'Min-Max'}")
 
     # Create output directory
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -330,6 +380,20 @@ def main():
     base_daily = aggregate_to_daily(base, method=DAILY_METHOD)
     nofire_daily = aggregate_to_daily(nofire, method=DAILY_METHOD)
     delta_daily = aggregate_to_daily(delta, method=DAILY_METHOD)
+
+    # Calculate color levels based on entire month
+    print("\nCalculating color scale levels from monthly data...")
+    levels_base = calculate_levels(base_daily, symmetric=False, n_levels=N_LEVELS)
+    levels_delta = calculate_levels(delta_daily, symmetric=config['can_be_negative'], n_levels=N_LEVELS)
+
+    # For percent change, use symmetric levels
+    percent_all = ((base_daily - nofire_daily) / nofire_daily * 100)
+    percent_all = np.where(np.isinf(percent_all), np.nan, percent_all)
+    levels_percent = calculate_levels(percent_all, symmetric=config['can_be_negative'], n_levels=N_LEVELS)
+
+    print(f"  Base levels: {levels_base}")
+    print(f"  Delta levels: {levels_delta}")
+    print(f"  Percent levels: {levels_percent}")
 
     # Generate plots for each day
     print("\nGenerating daily plots...")
@@ -351,13 +415,16 @@ def main():
             units,
             date_str,
             cno,
-            day + 1
+            day + 1,
+            levels_base,
+            levels_delta,
+            levels_percent
         )
         image_files.append(img_file)
 
     # Create output filename
     unit_str = units.replace('/', 'per').replace('³', '3').replace('μg', 'ug')
-    output_filename = f"{config['var_name']}_{unit_str}_daily_2x2_June2023.pptx"
+    output_filename = f"{config['var_name']}_{unit_str}_daily_2x2_June2023_auto.pptx"
     output_path = os.path.join(OUTPUT_DIR, output_filename)
 
     # Create PowerPoint

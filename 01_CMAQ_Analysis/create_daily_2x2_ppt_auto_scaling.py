@@ -21,7 +21,7 @@ warnings.filterwarnings('ignore')
 
 # ============= USER CONFIGURATION =============
 # Pollutant to analyze
-POLLUTANT = 'O3'  # Options: 'O3', 'PM25_TOT', 'CO', 'BENZENE', 'TOLUENE', 'PHENOL'
+POLLUTANT = 'CO'  # Options: 'O3', 'PM25_TOT', 'CO', 'BENZENE', 'TOLUENE', 'PHENOL'
 
 # Unit conversion
 CONVERT_TO_UGM3 = False  # True: convert to μg/m³, False: keep native units (ppb for gases)
@@ -204,7 +204,8 @@ def calculate_fire_impact(baseconc, nofireconc, metcro2d, config):
     # Convert to μg/m³ if requested and if it's a gas (ppb)
     if CONVERT_TO_UGM3 and config['native_units'] == 'ppb':
         print(f"Converting from {config['native_units']} to μg/m³...")
-        air_dens = metcro2d['DENS']  # Air density (kg/m³)
+        # AIR_DENS is in the COMBINE_ACONC file, not METCRO2D
+        air_dens = baseconc['AIR_DENS']  # Air density (kg/m³)
 
         # Select surface layer for air density if needed
         if len(air_dens.shape) == 4:
@@ -254,15 +255,14 @@ def aggregate_to_daily(data, method='mean'):
     return daily_data
 
 
-def set_map(ax, cno, title, colorlabel):
-    """Format map plots"""
-    ax.colorbar.set_label(colorlabel, rotation=270, labelpad=15, fontsize=9)
-    ax.axes.set_xlabel('')
-    ax.axes.set_xticklabels('')
-    ax.axes.set_ylabel('')
-    ax.axes.set_yticklabels('')
-    plt.setp(ax.axes, **dict(title=title))
-    cno.drawstates(ax=ax.axes, linewidth=0.2)
+def format_map_axis(ax, cno, title):
+    """Format map axis"""
+    ax.set_xlabel('')
+    ax.set_xticks([])
+    ax.set_ylabel('')
+    ax.set_yticks([])
+    ax.set_title(title, fontsize=10)
+    cno.drawstates(ax=ax, linewidth=0.2)
 
 
 def create_daily_plot(base_day, nofire_day, delta_day, config, units, date_str, cno, day_num,
@@ -272,44 +272,45 @@ def create_daily_plot(base_day, nofire_day, delta_day, config, units, date_str, 
     fig, axes = plt.subplots(2, 2, figsize=(14, 7), dpi=150)
     plt.subplots_adjust(wspace=0.25, hspace=0.35, top=0.92, bottom=0.08, left=0.05, right=0.95)
 
-    # Overall title
-    fig.suptitle(f'Wildfire Impact on {config["display_name"]} - {date_str}\n(CMAQv6a1 CRACMM3, 12US4 Domain)',
-                 fontsize=14, fontweight='bold')
+    # Overall title - simplified to just pollutant name and date
+    fig.suptitle(f'{config["display_name"]} - {date_str}',
+                 fontsize=16, fontweight='bold')
 
     # Panel (a): Base simulation
-    plt.sca(axes[0, 0])
     pv = axes[0, 0].contourf(base_day, cmap=config['colormap_base'],
                               levels=levels_base, extend='both')
-    title_a = f'(a) Base Simulation\nMean: {np.nanmean(base_day):.2f}, Max: {np.nanmax(base_day):.1f} {units}'
     cb = plt.colorbar(pv, ax=axes[0, 0])
-    set_map(cb, cno, title_a, f'{config["display_name"]} ({units})')
+    cb.set_label(f'{config["display_name"]} ({units})', rotation=270, labelpad=15, fontsize=9)
+    title_a = f'(a) Base Simulation\nMean: {np.nanmean(base_day):.2f}, Max: {np.nanmax(base_day):.1f} {units}'
+    format_map_axis(axes[0, 0], cno, title_a)
 
     # Panel (b): No-fire simulation
-    plt.sca(axes[0, 1])
     pv = axes[0, 1].contourf(nofire_day, cmap=config['colormap_base'],
                               levels=levels_base, extend='both')
-    title_b = f'(b) No-Fire Scenario\nMean: {np.nanmean(nofire_day):.2f}, Max: {np.nanmax(nofire_day):.1f} {units}'
     cb = plt.colorbar(pv, ax=axes[0, 1])
-    set_map(cb, cno, title_b, f'{config["display_name"]} ({units})')
+    cb.set_label(f'{config["display_name"]} ({units})', rotation=270, labelpad=15, fontsize=9)
+    title_b = f'(b) No-Fire Scenario\nMean: {np.nanmean(nofire_day):.2f}, Max: {np.nanmax(nofire_day):.1f} {units}'
+    format_map_axis(axes[0, 1], cno, title_b)
 
     # Panel (c): Absolute delta
-    plt.sca(axes[1, 0])
     pv = axes[1, 0].contourf(delta_day, cmap=config['colormap_delta'],
                               levels=levels_delta, extend='both')
-    title_c = f'(c) Fire Impact: Δ{config["display_name"]} (Base − No Fire)\nMean: {np.nanmean(delta_day):.2f}, Range: [{np.nanmin(delta_day):.2f}, {np.nanmax(delta_day):.2f}] {units}'
     cb = plt.colorbar(pv, ax=axes[1, 0])
-    set_map(cb, cno, title_c, f'Δ{config["display_name"]} ({units})')
+    cb.set_label(f'Δ{config["display_name"]} ({units})', rotation=270, labelpad=15, fontsize=9)
+    title_c = f'(c) Fire Impact: Δ{config["display_name"]} (Base − No Fire)\nMean: {np.nanmean(delta_day):.2f}, Range: [{np.nanmin(delta_day):.2f}, {np.nanmax(delta_day):.2f}] {units}'
+    format_map_axis(axes[1, 0], cno, title_c)
 
     # Panel (d): Percent delta
-    percent_delta = ((base_day - nofire_day) / nofire_day * 100)
-    percent_delta = np.where(np.isinf(percent_delta), np.nan, percent_delta)  # Remove infinities
+    # Fix: Use base_day as denominator (not nofire_day) and use pre-calculated delta_day
+    # This matches the reference notebook methodology and handles max aggregation correctly
+    percent_delta = np.where(base_day > 0, (delta_day / base_day * 100), np.nan)
 
-    plt.sca(axes[1, 1])
     pv = axes[1, 1].contourf(percent_delta, cmap=config['colormap_delta'],
                               levels=levels_percent, extend='both')
-    title_d = f'(d) Relative Fire Impact: %Δ{config["display_name"]}\nMean: {np.nanmean(percent_delta):.1f}%, Range: [{np.nanmin(percent_delta):.0f}%, {np.nanmax(percent_delta):.0f}%]'
     cb = plt.colorbar(pv, ax=axes[1, 1])
-    set_map(cb, cno, title_d, '% Change')
+    cb.set_label('% Change', rotation=270, labelpad=15, fontsize=9)
+    title_d = f'(d) Relative Fire Impact: %Δ{config["display_name"]}\nMean: {np.nanmean(percent_delta):.1f}%, Range: [{np.nanmin(percent_delta):.0f}%, {np.nanmax(percent_delta):.0f}%]'
+    format_map_axis(axes[1, 1], cno, title_d)
 
     # Save to temporary file
     temp_file = f'temp_day_{day_num:02d}.png'

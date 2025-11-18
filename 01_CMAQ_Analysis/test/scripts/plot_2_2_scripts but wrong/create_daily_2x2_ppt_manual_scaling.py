@@ -22,7 +22,7 @@ warnings.filterwarnings('ignore')
 
 # ============= USER CONFIGURATION =============
 # Pollutant to analyze
-POLLUTANT = 'CO'  # Options: 'O3', 'PM25_TOT', 'CO', 'BENZENE', 'TOLUENE', 'PHENOL'
+POLLUTANT = 'O3'  # Options: 'O3', 'PM25_TOT', 'CO', 'BENZENE', 'TOLUENE', 'PHENOL'
 
 # Unit conversion
 CONVERT_TO_UGM3 = False  # True: convert to μg/m³, False: keep native units (ppb for gases)

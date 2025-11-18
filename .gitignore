@@ -35,3 +35,4 @@ desktop.ini
 
 # Large output files (uncomment if notebooks have large outputs)
 # You can clear outputs before committing with: jupyter nbconvert --clear-output --inplace *.ipynb
+*.pptx
