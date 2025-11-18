@@ -1,0 +1,37 @@
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Data files (optional - uncomment if you don't want to track large data files)
+# *.nc
+# *.csv
+# *.hdf5
+# *.h5
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Large output files (uncomment if notebooks have large outputs)
+# You can clear outputs before committing with: jupyter nbconvert --clear-output --inplace *.ipynb
