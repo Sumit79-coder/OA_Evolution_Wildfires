@@ -21,7 +21,7 @@ warnings.filterwarnings('ignore')
 
 # ============= USER CONFIGURATION =============
 # Pollutant to analyze
-POLLUTANT = 'CO'  # Options: 'O3', 'PM25_TOT', 'CO', 'BENZENE', 'TOLUENE', 'PHENOL'
+POLLUTANT = 'PM25_TOT'  # Options: 'O3', 'PM25_TOT', 'CO', 'BENZENE', 'TOLUENE', 'PHENOL'
 
 # Unit conversion
 CONVERT_TO_UGM3 = False  # True: convert to μg/m³, False: keep native units (ppb for gases)
@@ -388,8 +388,9 @@ def main():
     levels_delta = calculate_levels(delta_daily, symmetric=config['can_be_negative'], n_levels=N_LEVELS)
 
     # For percent change, use symmetric levels
-    percent_all = ((base_daily - nofire_daily) / nofire_daily * 100)
-    percent_all = np.where(np.isinf(percent_all), np.nan, percent_all)
+    # Fix: Use base_daily as denominator (not nofire_daily) to match notebook methodology
+    # This ensures percent values stay within 0-100% range
+    percent_all = np.where(base_daily > 0, (delta_daily / base_daily * 100), np.nan)
     levels_percent = calculate_levels(percent_all, symmetric=config['can_be_negative'], n_levels=N_LEVELS)
 
     print(f"  Base levels: {levels_base}")
