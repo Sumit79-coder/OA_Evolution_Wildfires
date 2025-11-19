@@ -380,7 +380,17 @@ def main():
     # Aggregate to daily
     base_daily = aggregate_to_daily(base, method=DAILY_METHOD)
     nofire_daily = aggregate_to_daily(nofire, method=DAILY_METHOD)
-    delta_daily = aggregate_to_daily(delta, method=DAILY_METHOD)
+
+    # IMPORTANT: For 'max' aggregation, delta must be calculated AFTER aggregation
+    # because max(base - nofire) ≠ max(base) - max(nofire)
+    # For 'mean' aggregation, it doesn't matter: mean(base - nofire) = mean(base) - mean(nofire)
+    if DAILY_METHOD == 'max':
+        # Calculate delta from aggregated values (correct for max)
+        delta_daily = base_daily - nofire_daily
+        print("  Delta calculated from aggregated base and nofire (correct for max method)")
+    else:
+        # For mean, we can aggregate delta directly (mathematically equivalent)
+        delta_daily = aggregate_to_daily(delta, method=DAILY_METHOD)
 
     # Calculate color levels based on entire month
     print("\nCalculating color scale levels from monthly data...")
