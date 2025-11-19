@@ -30,9 +30,6 @@ CONVERT_TO_UGM3 = False  # True: convert to μg/m³, False: keep native units (p
 BASE_DIR = r'D:/Raw_Data/CMAQ_Model/'
 OUTPUT_DIR = r'C:\Users\smtku\OA_Evolution_Wildfires\01_CMAQ_Analysis\figures\daily_2x2_maps'
 
-# Daily aggregation method
-DAILY_METHOD = 'mean'  # Options: 'mean' or 'max'
-
 # Auto-scaling parameters
 N_LEVELS = 9  # Number of contour levels
 USE_PERCENTILES = True  # True: use percentiles (robust), False: use min-max
@@ -228,9 +225,21 @@ def calculate_fire_impact(baseconc, nofireconc, metcro2d, config):
     return base, nofire, delta, units
 
 
-def aggregate_to_daily(data, method='mean'):
-    """Aggregate hourly data to daily"""
-    print(f"Aggregating to daily {method}...")
+def aggregate_to_daily(data):
+    """
+    Aggregate hourly data to daily mean.
+
+    Following Pye2025_FirePMevolution.ipynb methodology:
+    - Notebook: .mean(dim='TSTEP') aggregates ALL 720 hours → monthly mean
+    - This script: aggregates each 24-hour period → 30 daily means
+
+    Args:
+        data: xarray with shape (720, ROW, COL) - 720 hours for June 2023
+
+    Returns:
+        numpy array with shape (30, ROW, COL) - 30 daily means
+    """
+    print("Aggregating to daily mean (24 hours per day)...")
 
     # Reshape from (720, ROW, COL) to (30, 24, ROW, COL)
     n_days = 30
@@ -243,13 +252,8 @@ def aggregate_to_daily(data, method='mean'):
     shape = (n_days, n_hours) + data_array.shape[1:]
     data_reshaped = data_array.reshape(shape)
 
-    # Aggregate
-    if method == 'mean':
-        daily_data = np.mean(data_reshaped, axis=1)
-    elif method == 'max':
-        daily_data = np.max(data_reshaped, axis=1)
-    else:
-        raise ValueError(f"Unknown method: {method}")
+    # Aggregate using mean (matching notebook methodology)
+    daily_data = np.mean(data_reshaped, axis=1)
 
     print(f"Daily aggregation complete! Shape: {daily_data.shape}")
     return daily_data
@@ -365,7 +369,7 @@ def main():
     print(f"\nPollutant: {config['display_name']}")
     print(f"Native units: {config['native_units']}")
     print(f"Convert to μg/m³: {CONVERT_TO_UGM3}")
-    print(f"Daily aggregation: {DAILY_METHOD}")
+    print(f"Daily aggregation: mean (24 hours per day)")
     print(f"Auto-scaling: {'Percentile-based' if USE_PERCENTILES else 'Min-Max'}")
 
     # Create output directory
@@ -377,10 +381,17 @@ def main():
     # Calculate fire impact
     base, nofire, delta, units = calculate_fire_impact(baseconc, nofireconc, metcro2d, config)
 
-    # Aggregate to daily
-    base_daily = aggregate_to_daily(base, method=DAILY_METHOD)
-    nofire_daily = aggregate_to_daily(nofire, method=DAILY_METHOD)
-    delta_daily = aggregate_to_daily(delta, method=DAILY_METHOD)
+    # Aggregate to daily - matching Pye2025_FirePMevolution.ipynb methodology
+    # Notebook does: mean(base) - mean(nofire) for monthly average
+    # We do: mean(base[day]) - mean(nofire[day]) for each daily average
+    print("\nAggregating hourly data to daily means...")
+    base_daily = aggregate_to_daily(base)
+    nofire_daily = aggregate_to_daily(nofire)
+
+    # Calculate delta from aggregated daily values (matching notebook approach)
+    # This ensures: delta_daily[day] = mean(base[day]) - mean(nofire[day])
+    delta_daily = base_daily - nofire_daily
+    print("Delta calculated from aggregated daily base and nofire (matches notebook methodology)")
 
     # Calculate color levels based on entire month
     print("\nCalculating color scale levels from monthly data...")
