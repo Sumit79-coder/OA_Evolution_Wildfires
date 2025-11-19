@@ -28,7 +28,7 @@ CONVERT_TO_UGM3 = False  # True: convert to μg/m³, False: keep native units (p
 
 # Paths
 BASE_DIR = r'D:/Raw_Data/CMAQ_Model/'
-OUTPUT_DIR = r'C:\Users\smtku\OA_Evolution_Wildfires\01_CMAQ_Analysis\figures\daily_2x2_maps'
+OUTPUT_DIR = r'C:\Users\smtku\OA_Evolution_Wildfires\01_CMAQ_Analysis\figures\daily_2x2_maps_corrected'
 
 # Auto-scaling parameters
 N_LEVELS = 9  # Number of contour levels

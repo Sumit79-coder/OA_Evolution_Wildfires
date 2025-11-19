@@ -22,14 +22,14 @@ warnings.filterwarnings('ignore')
 
 # ============= USER CONFIGURATION =============
 # Pollutant to analyze
-POLLUTANT = 'PM25_TOT'  # Options: 'O3', 'PM25_TOT', 'CO', 'BENZENE', 'TOLUENE', 'PHENOL'
+POLLUTANT = 'CO'  # Options: 'O3', 'PM25_TOT', 'CO', 'BENZENE', 'TOLUENE', 'PHENOL'
 
 # Unit conversion
-CONVERT_TO_UGM3 = False  # True: convert to μg/m³, False: keep native units (ppb for gases)
+CONVERT_TO_UGM3 = True  # True: convert to μg/m³, False: keep native units (ppb for gases)
 
 # Paths
 BASE_DIR = r'D:/Raw_Data/CMAQ_Model/'
-OUTPUT_DIR = r'C:\Users\smtku\OA_Evolution_Wildfires\01_CMAQ_Analysis\figures\daily_2x2_maps'
+OUTPUT_DIR = r'C:\Users\smtku\OA_Evolution_Wildfires\01_CMAQ_Analysis\figures\daily_2x2_maps_corrected'
 
 # Start date (first day of data)
 START_DATE = datetime(2023, 6, 1)
